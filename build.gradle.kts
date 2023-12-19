@@ -3,7 +3,7 @@ import org.gradle.internal.os.OperatingSystem
 import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
-group = "org.openrndr.template"
+group = "com.senex.itis"
 version = "1.0.0"
 
 val applicationMainClass = "TemplateProgramKt"

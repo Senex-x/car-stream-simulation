@@ -1,3 +1,5 @@
+package com.senex.itis
+
 import org.openrndr.application
 import org.openrndr.color.ColorRGBa
 import org.openrndr.extra.olive.oliveProgram
@@ -8,7 +10,6 @@ import org.openrndr.extra.olive.oliveProgram
  *  It uses oliveProgram {} instead of program {}. All code inside the
  *  oliveProgram {} can be changed while the program is running.
  */
-
 fun main() = application {
     configure {
         width = 800

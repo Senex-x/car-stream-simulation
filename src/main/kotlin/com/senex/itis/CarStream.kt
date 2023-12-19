@@ -12,25 +12,28 @@ data class Car(
     var onRoadside: Boolean = false,
     private val maxSpeed: Double = 100.0,
     private val acceleration: Double = 50.0,
-    private val braking: Double = 80.0,
+    private val braking: Double = 200.0,
+    private val minDistanceToFrontObject: Double = 40.0,
     private var speed: Double = 0.0,
-    private var lastTime: Double = 0.0
+    private var lastTime: Double = 0.0,
 ) {
-    fun move(distanceToFrontCar: Double, isTrafficLightGreen: Boolean, isRoadsideAvailable: Boolean, seconds: Double) {
+    private val brakingDistance: Double = maxSpeed * 1.5 / 2 // Hardcoded and actually depends on current speed
+
+    fun move(
+        distanceToFrontCar: Double,
+        distanceToTrafficLight: Double,
+        isTrafficLightGreen: Boolean,
+        isRoadsideAvailable: Boolean,
+        seconds: Double
+    ) {
         val deltaTime = seconds - lastTime
         lastTime = seconds
 
-        val movementType = if (isTrafficLightGreen) MovementType.ACCELERATE else MovementType.BRAKE
+        println(distanceToFrontCar)
+        val shouldAccelerate = distanceToFrontCar > minDistanceToFrontObject + brakingDistance
+                && (distanceToTrafficLight > minDistanceToFrontObject + brakingDistance || isTrafficLightGreen)
 
-        when (movementType) {
-            MovementType.ACCELERATE -> accelerate(deltaTime)
-            MovementType.BRAKE -> brake(deltaTime)
-        }
-    }
-
-    private fun moveInternal(seconds: Double, movementType: MovementType) {
-        val deltaTime = seconds - lastTime
-        lastTime = seconds
+        val movementType = if (shouldAccelerate) MovementType.ACCELERATE else MovementType.BRAKE
 
         when (movementType) {
             MovementType.ACCELERATE -> accelerate(deltaTime)
@@ -40,7 +43,6 @@ data class Car(
 
     private fun accelerate(deltaTime: Double) {
         val currentAcceleration = acceleration * deltaTime
-
         if (speed < maxSpeed - currentAcceleration) {
             speed += currentAcceleration
         } else {
@@ -49,9 +51,10 @@ data class Car(
         x += speed * deltaTime
     }
 
-    private fun brake(deltaTime: Double) { // Untested
-        if (speed > braking * deltaTime) {
-            speed -= braking * deltaTime
+    private fun brake(deltaTime: Double) {
+        val currentBraking = braking * deltaTime
+        if (speed > currentBraking) {
+            speed -= currentBraking
         } else {
             speed = 0.0
         }
@@ -65,13 +68,15 @@ data class Car(
 }
 
 class TrafficLight(
-    private val lightChangeDelay: Double = 5.0,
+    private val greenLightDuration: Double = 3.0,
+    private val redLightDuration: Double = 7.0,
 ) {
     private var lastUpdateTime: Double = -1.0
     private var state: Boolean = true
 
     fun tryUpdate(seconds: Double): Boolean {
-        if (seconds > lastUpdateTime + lightChangeDelay) {
+        val duration = if (state) greenLightDuration else redLightDuration
+        if (seconds > lastUpdateTime + duration) {
             lastUpdateTime = seconds
             state = !state
         }
@@ -80,7 +85,7 @@ class TrafficLight(
 }
 
 class CarStreamHandler(
-    val distanceToBridge: Double = 600.0,
+    val distanceToBridge: Double = 300.0,
     val bridgeLength: Double = 100.0,
     val distanceFromBridgeToTrafficLight: Double = 100.0,
     private val carStreamProducer: CarStreamProducer,
@@ -89,13 +94,16 @@ class CarStreamHandler(
     private val cars = mutableListOf<Car>()
 
     fun update(seconds: Double): State {
-        carStreamProducer.tryProduce(seconds)?.let { cars.add(it) }
+        if (cars.isRoadFree()) {
+            carStreamProducer.tryProduce(seconds)?.let { cars.add(it) }
+        }
 
         val isTrafficLightGreen = trafficLight.tryUpdate(seconds)
 
         cars.forEach { car ->
             car.move(
                 distanceToFrontCar = checkDistanceToFrontCar(car),
+                distanceToTrafficLight = distanceToBridge + bridgeLength + distanceFromBridgeToTrafficLight - car.x,
                 isTrafficLightGreen = isTrafficLightGreen,
                 isRoadsideAvailable = checkRoadsideAvailable(car),
                 seconds = seconds
@@ -105,8 +113,10 @@ class CarStreamHandler(
         return State(carCoordinates = cars.map { it.x to it.y }, isTrafficLightGreen = isTrafficLightGreen)
     }
 
+    private fun List<Car>.isRoadFree() = none { it.x < 70 }
+
     private fun checkDistanceToFrontCar(car: Car): Double =
-        cars.filter { other -> car.x < other.x && car.y == other.y }.minOfOrNull { it.x } ?: Double.MAX_VALUE
+        cars.filter { other -> car.x < other.x && car.y == other.y }.minOfOrNull { it.x } ?: Double.POSITIVE_INFINITY
 
     private fun checkRoadsideAvailable(car: Car): Boolean = car.x < distanceToBridge
 
@@ -118,7 +128,7 @@ class CarStreamHandler(
 
 fun main() = application {
     configure {
-        width = 1000
+        width = 1400
         height = 600
     }
 
@@ -151,7 +161,7 @@ fun CarStreamHandler.drawEnvironment(drawer: Drawer, isTrafficLightGreen: Boolea
         x1 = distanceToBridge + bridgeLength,
         y1 = 90.0
     ) // 20 meters in length somehow
-    drawer.stroke = if(isTrafficLightGreen) ColorRGBa.GREEN else ColorRGBa.RED
+    drawer.stroke = if (isTrafficLightGreen) ColorRGBa.GREEN else ColorRGBa.RED
     drawer.lineSegment(
         x0 = distanceToBridge + bridgeLength + distanceFromBridgeToTrafficLight,
         y0 = 40.0,

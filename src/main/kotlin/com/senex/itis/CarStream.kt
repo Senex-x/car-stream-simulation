@@ -25,21 +25,22 @@ object CarStreamSettings {
 
         const val length: Double = 12.0 // m
         const val width: Double = 6.0 // m
+        val startingSpeed: Double = 50.0.kilometersToMeters().hoursToSeconds() // km/h
         val maxSpeed: Double = 180.0.kilometersToMeters().hoursToSeconds() // km/h
         val roadsideMaxSpeed: Double = 60.0.kilometersToMeters().hoursToSeconds() // km/h
         const val acceleration: Double = 10.0 // m/s^2
         const val braking: Double = 20.0 // m/s^2
         const val emergencyBraking: Double = 30.0 // m/s^2
-        const val minDistanceToFrontObject: Double = 20.0 // m
+        const val minDistanceToFrontObject: Double = 30.0 // m
         const val canUseRoadside: Boolean = true
         val roadsideSwitchSpeedThreshold: Double = 5.0.kilometersToMeters().hoursToSeconds() // km/h
     }
 
     object Road {
 
-        val distanceToBridge: Double = 0.1.kilometersToMeters() // km
+        val distanceToBridge: Double = 1.0.kilometersToMeters() // km
         val bridgeLength: Double = 0.02.kilometersToMeters() // km (20m forced)
-        val distanceFromBridgeToTrafficLight: Double = 0.05.kilometersToMeters() // km
+        val distanceFromBridgeToTrafficLight: Double = 0.2.kilometersToMeters() // km
     }
 
     object TrafficLight {
@@ -222,7 +223,7 @@ class CarStreamHandler(
         return State(cars = cars, isTrafficLightGreen = isTrafficLightGreen)
     }
 
-    private fun List<Car>.isRoadFree() = none { it.x < it.length + 10.0 }
+    private fun List<Car>.isRoadFree() = none { it.x < it.length + 20.0 }
 
     private fun checkDistanceToFrontCar(car: Car): Double =
         cars.filter { other -> car.x < other.x && car.currentLine == other.currentLine }
@@ -250,7 +251,10 @@ fun main() = application {
         distanceToBridge = CarStreamSettings.Road.distanceToBridge,
         bridgeLength = CarStreamSettings.Road.bridgeLength,
         distanceFromBridgeToTrafficLight = CarStreamSettings.Road.distanceFromBridgeToTrafficLight,
-        carStreamProducer = CarStreamProducer(intensity = CarStreamSettings.Producer.intensity),
+        carStreamProducer = CarStreamProducer(
+            startingSpeed = CarStreamSettings.Car.startingSpeed,
+            intensity = CarStreamSettings.Producer.intensity
+        ),
         trafficLight = TrafficLight(
             greenLightDuration = CarStreamSettings.TrafficLight.greenLightDuration,
             redLightDuration = CarStreamSettings.TrafficLight.redLightDuration,

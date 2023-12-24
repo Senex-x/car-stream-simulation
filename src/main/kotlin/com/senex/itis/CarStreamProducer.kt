@@ -2,6 +2,7 @@ package com.senex.itis
 
 class CarStreamProducer(
     private val intensity: Double,
+    private val startingSpeed: Double,
     private val carThreshold: Int = Int.MAX_VALUE,
 ) {
     private var lastProducedTime: Double = -100.0
@@ -11,6 +12,6 @@ class CarStreamProducer(
         if (carThreshold > carsProduced && seconds > lastProducedTime + 1.0 / intensity) {
             lastProducedTime = seconds
             carsProduced++
-            Car(lastTime = seconds)
+            Car(speed = startingSpeed, lastTime = seconds)
         } else null
 }

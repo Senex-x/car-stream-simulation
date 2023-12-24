@@ -11,7 +11,7 @@ data class Car(
     private val braking: Double = CarStreamSettings.Car.braking,
     private val emergencyBraking: Double = CarStreamSettings.Car.emergencyBraking,
     private val minDistanceToFrontObject: Double = CarStreamSettings.Car.minDistanceToFrontObject,
-    private val lineChangeTimeThreshold: Double = 2.0, // sec
+    private val lineChangeTimeThreshold: Double = 5.0, // sec
     private val canUseRoadside: Boolean = CarStreamSettings.Car.canUseRoadside,
     private val roadsideSwitchSpeedThreshold: Double = CarStreamSettings.Car.roadsideSwitchSpeedThreshold,
     var speed: Double = 0.0,
@@ -72,11 +72,12 @@ data class Car(
         seconds: Double
     ) {
         val canSwitchToRoadside = hasCarClose
+                && currentLine == LineType.ROAD
                 && speed < roadsideSwitchSpeedThreshold
                 && !isTrafficLightGreen
                 && isRoadsideAvailable
-                && currentLine == LineType.ROAD
-        val canSwitchToRoad = isRoadAvailable && currentLine == LineType.ROADSIDE
+        val canSwitchToRoad = isRoadAvailable
+                && currentLine == LineType.ROADSIDE
 
         if (seconds - lastLineChangeTime > lineChangeTimeThreshold
             && lastLineChangePosition != x
@@ -110,7 +111,7 @@ data class Car(
     }
 
     enum class LineType(val y: Double) {
-        ROAD(50.0),
-        ROADSIDE(100.0),
+        ROAD(45.0),
+        ROADSIDE(75.0),
     }
 }

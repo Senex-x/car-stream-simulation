@@ -13,7 +13,6 @@ import kotlin.math.roundToInt
         - Скорость образования скопления: Vскоп
         - Оцените расстояние, которое должен проехать автомобиль до полной остановки при фиксированной начальной скорости и постоянном ускорении торможения.
         - Рассчитайте протяженность скопления автомобилей и интенсивность потока через M километров после светофора в зависимости от интенсивности потока, формирующегося в N километрах перед светофором
-        - IMPLEMENT FRONT CAR SPEED CONSIDERATION
  */
 
 object CarStreamSettings {
@@ -45,7 +44,7 @@ object CarStreamSettings {
     object TrafficLight {
 
         const val greenLightDuration: Double = 3.0 // sec
-        const val redLightDuration: Double = 5.0 // sec
+        const val redLightDuration: Double = 7.0 // sec
     }
 
     object Producer {
@@ -154,6 +153,7 @@ fun main() = application {
             carStreamHandler.drawEnvironment(drawer, isTrafficLightGreen)
             cars.forEach { car ->
                 drawer.stroke = ColorRGBa.BLACK
+                drawer.strokeWeight = 1.0
                 drawer.fill = ColorRGBa.RED
                 drawer.rectangle(
                     x = car.x,
@@ -171,20 +171,21 @@ fun main() = application {
 
 fun CarStreamHandler.drawEnvironment(drawer: Drawer, isTrafficLightGreen: Boolean) {
     drawer.stroke = ColorRGBa.BROWN
-    drawer.lineSegment(x0 = 0.0, y0 = 90.0, x1 = distanceToBridge, y1 = 90.0)
+    drawer.lineSegment(x0 = 0.0, y0 = 60.0, x1 = distanceToBridge, y1 = 60.0)
     drawer.stroke = ColorRGBa.BLUE
     drawer.lineSegment(
         x0 = distanceToBridge,
-        y0 = 90.0,
+        y0 = 60.0,
         x1 = distanceToBridge + bridgeLength,
-        y1 = 90.0
+        y1 = 60.0
     )
     drawer.stroke = if (isTrafficLightGreen) ColorRGBa.GREEN else ColorRGBa.RED
+    drawer.strokeWeight = 2.0
     drawer.lineSegment(
         x0 = distanceToBridge + bridgeLength + distanceFromBridgeToTrafficLight,
         y0 = 40.0,
         x1 = distanceToBridge + bridgeLength + distanceFromBridgeToTrafficLight,
-        y1 = 90.0
+        y1 = 60.0
     )
 }
 

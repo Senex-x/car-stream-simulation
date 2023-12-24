@@ -2,7 +2,7 @@ package com.senex.itis
 
 class CarStreamProducer(
     private val intensity: Double,
-    private val carThreshold: Int = 1,
+    private val carThreshold: Int = Int.MAX_VALUE,
 ) {
     private var lastProducedTime: Double = -100.0
     private var carsProduced = 0

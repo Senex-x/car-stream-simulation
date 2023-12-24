@@ -4,7 +4,6 @@ import org.openrndr.application
 import org.openrndr.color.ColorRGBa
 import org.openrndr.draw.Drawer
 import org.openrndr.extra.color.presets.BROWN
-import kotlin.math.max
 import kotlin.math.roundToInt
 
 /*
@@ -15,35 +14,38 @@ import kotlin.math.roundToInt
         - Скорость образования скопления: Vскоп
         - Оцените расстояние, которое должен проехать автомобиль до полной остановки при фиксированной начальной скорости и постоянном ускорении торможения.
         - Рассчитайте протяженность скопления автомобилей и интенсивность потока через M километров после светофора в зависимости от интенсивности потока, формирующегося в N километрах перед светофором
+        - IMPLEMENT FRONT CAR SPEED CONSIDERATION
  */
 
 object CarStreamSettings {
 
+    const val debug: Boolean = true
+
     object Car {
 
-        const val length: Double = 4.0 // m
-        const val width: Double = 2.0 // m
-        val maxSpeed: Double = 160.0.kilometersToMeters().hoursToSeconds() // km/h
+        const val length: Double = 12.0 // m
+        const val width: Double = 6.0 // m
+        val maxSpeed: Double = 180.0.kilometersToMeters().hoursToSeconds() // km/h
         val roadsideMaxSpeed: Double = 60.0.kilometersToMeters().hoursToSeconds() // km/h
-        val acceleration: Double = 60.0.kilometersToMeters() // km/hr^2
-        val braking: Double = 200.0.toMetersPerSquareSeconds() // km/hr^2
-        val emergencyBraking: Double = 300.0.toMetersPerSquareSeconds() // km/hr^2
-        const val minDistanceToFrontObject: Double = 40.0 // m
+        const val acceleration: Double = 10.0 // m/s^2
+        const val braking: Double = 20.0 // m/s^2
+        const val emergencyBraking: Double = 30.0 // m/s^2
+        const val minDistanceToFrontObject: Double = 20.0 // m
         const val canUseRoadside: Boolean = true
         val roadsideSwitchSpeedThreshold: Double = 5.0.kilometersToMeters().hoursToSeconds() // km/h
     }
 
     object Road {
 
-        val distanceToBridge: Double = 1.0.kilometersToMeters() // km
+        val distanceToBridge: Double = 0.1.kilometersToMeters() // km
         val bridgeLength: Double = 0.02.kilometersToMeters() // km (20m forced)
-        val distanceFromBridgeToTrafficLight: Double = 0.2.kilometersToMeters() // km
+        val distanceFromBridgeToTrafficLight: Double = 0.05.kilometersToMeters() // km
     }
 
     object TrafficLight {
 
         const val greenLightDuration: Double = 3.0 // sec
-        const val redLightDuration: Double = 7.0 // sec
+        const val redLightDuration: Double = 5.0 // sec
     }
 
     object Producer {
@@ -52,13 +54,9 @@ object CarStreamSettings {
     }
 }
 
-fun Double.metersToKilometers(): Double = this / 1000
-
 fun Double.kilometersToMeters(): Double = this * 1000
 
 fun Double.hoursToSeconds(): Double = this / 60 / 60
-
-fun Double.toMetersPerSquareSeconds(): Double = this * 0.00007716049
 
 data class Car(
     val debug: Boolean = false,
@@ -69,15 +67,16 @@ data class Car(
     private val roadsideMaxSpeed: Double = CarStreamSettings.Car.roadsideMaxSpeed,
     private val acceleration: Double = CarStreamSettings.Car.acceleration,
     private val braking: Double = CarStreamSettings.Car.braking,
-    private val emergencyBraking: Double = CarStreamSettings.Car.emergencyBraking, // unused
+    private val emergencyBraking: Double = CarStreamSettings.Car.emergencyBraking,
     private val minDistanceToFrontObject: Double = CarStreamSettings.Car.minDistanceToFrontObject,
     private val lineChangeTimeThreshold: Double = 2.0, // sec
-    private val canUseRoadside: Boolean = CarStreamSettings.Car.canUseRoadside, // unused
+    private val canUseRoadside: Boolean = CarStreamSettings.Car.canUseRoadside,
     private val roadsideSwitchSpeedThreshold: Double = CarStreamSettings.Car.roadsideSwitchSpeedThreshold,
     var speed: Double = 0.0,
     private var lastTime: Double = 0.0,
 ) {
-    private val brakingDistance: Double = maxSpeed / 4 // Hardcoded and actually depends on current speed
+    private val brakingDistance: Double
+        get() = speed // Not an actual formula
     private var lastLineChangeTime: Double = -1.0 // TODO: Make handler for line changing
     private var lastLineChangePosition: Double = -1.0
 
@@ -97,6 +96,7 @@ data class Car(
         val hasCarClose = !distanceToFrontCar.isEnoughDistance()
         val hasRoadsideEndClose = currentLine == LineType.ROADSIDE && !distanceToRoadsideEnd.isEnoughDistance()
         val shouldIgnoreTrafficLight = distanceToTrafficLight.isEnoughDistance()
+                || distanceToTrafficLight < 0
                 || (distanceToTrafficLight < minDistanceToFrontObject && speed > maxSpeed * 0.8)
 
         val shouldAccelerate = speed < speedThreshold
@@ -104,15 +104,20 @@ data class Car(
                 && !hasRoadsideEndClose
                 && (shouldIgnoreTrafficLight || isTrafficLightGreen)
 
-        changeLineIfNeeded(
-            isRoadsideAvailable = isRoadsideAvailable,
-            isRoadAvailable = isRoadAvailable,
-            isTrafficLightGreen = isTrafficLightGreen,
-            hasCarClose = hasCarClose,
-            seconds = seconds,
-        )
+        val shouldUseEmergencyBraking = !shouldAccelerate
+                && (distanceToFrontCar < minDistanceToFrontObject || distanceToRoadsideEnd < minDistanceToFrontObject)
 
-        if (shouldAccelerate) accelerate(deltaTime) else brake(deltaTime)
+        if (canUseRoadside) {
+            changeLineIfNeeded(
+                isRoadsideAvailable = isRoadsideAvailable,
+                isRoadAvailable = isRoadAvailable,
+                isTrafficLightGreen = isTrafficLightGreen,
+                hasCarClose = hasCarClose,
+                seconds = seconds,
+            )
+        }
+
+        if (shouldAccelerate) accelerate(deltaTime) else brake(deltaTime, shouldUseEmergencyBraking)
     }
 
     private fun Double.isEnoughDistance(): Boolean = this > minDistanceToFrontObject + brakingDistance
@@ -125,7 +130,7 @@ data class Car(
         seconds: Double
     ) {
         val canSwitchToRoadside = hasCarClose
-                && speed < roadsideSwitchSpeedThreshold // Tune speed threshold for changing to roadside
+                && speed < roadsideSwitchSpeedThreshold
                 && !isTrafficLightGreen
                 && isRoadsideAvailable
                 && currentLine == LineType.ROAD
@@ -151,8 +156,9 @@ data class Car(
         x += speed * deltaTime
     }
 
-    private fun brake(deltaTime: Double) {
-        val currentBraking = braking * deltaTime
+    private fun brake(deltaTime: Double, useEmergencyBraking: Boolean) {
+        val brakingValue = if (useEmergencyBraking) emergencyBraking else braking
+        val currentBraking = brakingValue * deltaTime
         if (speed > currentBraking) {
             speed -= currentBraking
         } else {
@@ -261,9 +267,15 @@ fun main() = application {
             cars.forEach { car ->
                 drawer.stroke = ColorRGBa.BLACK
                 drawer.fill = ColorRGBa.RED
-                drawer.rectangle(x = car.x, y = car.currentLine.y, width = CarStreamSettings.Car.length, height = CarStreamSettings.Car.width)
+                drawer.rectangle(
+                    x = car.x,
+                    y = car.currentLine.y,
+                    width = CarStreamSettings.Car.length,
+                    height = CarStreamSettings.Car.width
+                )
 
-                drawer.text(car.speed.roundToInt().toString(), car.x, car.currentLine.y)
+                if (CarStreamSettings.debug)
+                    drawer.text(car.speed.roundToInt().toString(), car.x, car.currentLine.y)
             }
         }
     }
